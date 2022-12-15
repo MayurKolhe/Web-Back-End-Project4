@@ -5,34 +5,38 @@ from quart_schema import QuartSchema
 import redis
 import random
 import httpx
+import asyncio
 
 app = Quart(__name__)
 QuartSchema(app)
 
 
-@app.before_serving
+#@app.before_serving
 async def calling_game_service():
-    # connected = False
-    # while (True):
-        # r = httpx.post('http://tuffix-vm/webhookInitialization', data={'callbackUrl':'http://127.0.0.1:5400/postgame'})
-        # # r = httpx.post('http://httpbin.org/post', data={'callbackUrl':'http://127.0.0.1:5400/postgame'})
-
-        # print(r.status_code)
-        # # print(r.headers['content-type'])
-        # print("Send Webhook")
-        # time.sleep(1)
-
-    result = None
-    while result is None:
-        try:
-            print("hello")
-            game_URL = socket.getfqdn("127.0.0.1:5100")
-            result = httpx.post('http://'+game_URL+'/webhook', data={"callbackUrl": "abc"})
-            print(result.status_code)
-        except httpx.RequestError:
-            print("error")
-            time.sleep(5)
-
+    connected = False
+    print("outside loop!!!!!!!!!")
+    r = None
+    while (r is None):
+        print("inside loop !!!!!!!!!!")
+        r = httpx.post('http://tuffix-vm/webhookInitialization', data={'callbackUrl':'http://127.0.0.1:5400/postgame'})
+        print('ABC' , r)
+        print('DEF' , r.headers['content-type'])
+        print("Send Webhook")
+        time.sleep(10)
+    # result = None
+    # while result is None:
+    #     try:
+    #         print("hello")
+    #         game_URL = socket.getfqdn("127.0.0.1:5100")
+    #         result = httpx.post('http://'+game_URL+'/webhookInitialization', data={"callbackUrl": "http://127.0.0.1:5400"} , timeout =150000 )
+    #         print(result.status_code)
+    #     except httpx.RequestError:
+    #         print("error")
+    #         time.sleep(5)
+    
+@app.before_serving
+async def startup():
+    app.calling_game_service = asyncio.ensure_future(calling_game_service())
 @app.route('/postgame', methods=['POST'])
 async def postgame():
     r = redis.Redis(host='localhost',port=6379,db=0)
