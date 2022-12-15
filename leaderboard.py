@@ -1,10 +1,37 @@
+import socket
+import time
 from quart import Quart
 from quart_schema import QuartSchema
 import redis
 import random
+import httpx
 
 app = Quart(__name__)
 QuartSchema(app)
+
+
+@app.before_serving
+async def calling_game_service():
+    # connected = False
+    # while (True):
+        # r = httpx.post('http://tuffix-vm/webhookInitialization', data={'callbackUrl':'http://127.0.0.1:5400/postgame'})
+        # # r = httpx.post('http://httpbin.org/post', data={'callbackUrl':'http://127.0.0.1:5400/postgame'})
+
+        # print(r.status_code)
+        # # print(r.headers['content-type'])
+        # print("Send Webhook")
+        # time.sleep(1)
+
+    result = None
+    while result is None:
+        try:
+            print("hello")
+            game_URL = socket.getfqdn("127.0.0.1:5100")
+            result = httpx.post('http://'+game_URL+'/webhook', data={"callbackUrl": "abc"})
+            print(result.status_code)
+        except httpx.RequestError:
+            print("error")
+            time.sleep(5)
 
 @app.route('/postgame', methods=['POST'])
 async def postgame():

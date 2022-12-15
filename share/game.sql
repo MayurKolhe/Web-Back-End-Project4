@@ -24,6 +24,11 @@ CREATE TABLE guess(
     FOREIGN KEY(gameid) REFERENCES game(gameid)
 );
 
+CREATE TABLE callback(
+callbackId INTEGER PRIMARY KEY AUTOINCREMENT,
+callbackUrl TEXT
+);
+
 CREATE TABLE answer(
     answerid INTEGER PRIMARY KEY AUTOINCREMENT,
     answord VARCHAR(5)

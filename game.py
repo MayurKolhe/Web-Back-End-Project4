@@ -17,7 +17,9 @@ app.config.from_file(f"./etc/{__name__}.toml", toml.load)
 class Game:
     username: str
 
-
+@dataclasses.dataclass
+class Callback:
+    callbackUrl:str
 @dataclasses.dataclass
 class Guess:
     gameid: str
@@ -282,6 +284,19 @@ async def my_game():
             {"WWW-Authenticate": 'Basic realm = "Login required"'},
         )
 
+@app.route("/webhookInitialization", methods = ["POST"])
+@validate_request(Callback)
+async def demo_sucess(data):
+    db = await _connect_db_primary()
+    val = dataclasses.asdict(data)
+    # callbackUrl = request.args.get("callbackUrl")
+    print("testing val", val)
+    await db.execute("INSERT INTO callback(callbackUrl) VALUES (:callbackUrl)",
+    values=val)
+    return(
+        {"success": "webhooks Registered"},
+        200
+    )
 
 @app.errorhandler(409)
 def conflict(e):
