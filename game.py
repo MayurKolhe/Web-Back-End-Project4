@@ -4,8 +4,12 @@ import uuid
 import databases
 import random
 import toml
+import time
+from leaderboard import postgame
 from quart import Quart, abort, g, request
 from quart_schema import QuartSchema, validate_request
+from rq import Queue
+from redis import Redis
 
 app = Quart(__name__)
 QuartSchema(app)
@@ -131,6 +135,10 @@ async def add_guess(data):
         # is guessed word the answer
         if isAnswer is not None and len(isAnswer) >= 1:
             # update game status
+            redis_conn = Redis()
+            q = Queue(connection=redis_conn)
+            job = q.enqueue(postgame)	
+            print(job.result)
             try:
                 await db_write.execute(
                     """
@@ -210,6 +218,10 @@ async def add_guess(data):
                 # if after updating game number of guesses reaches max guesses then mark game as finished
                 if guessNum[0] + 1 >= 6:
                     # update game status as finished
+                    redis_conn = Redis()
+                    q = Queue(connection=redis_conn)
+                    job = q.enqueue(postgame)	
+                    print(job.result)
                     await db_write.execute(
                         """
                         UPDATE game set gstate = :status where gameid = :gameid
