@@ -218,7 +218,7 @@ async def add_guess(data):
                     # update game status as finished
                     redis_conn = Redis()
                     q = Queue(connection=redis_conn)
-                    job = q.enqueue(postgame)	
+                    job = q.enqueue(postscore, 6)	
                     print(job.result)
                     await db_write.execute(
                         """
