@@ -24,10 +24,10 @@ CREATE TABLE guess(
     FOREIGN KEY(gameid) REFERENCES game(gameid)
 );
 
-CREATE TABLE callbacks(
-    client TEXT NOT NULL,
-    callbackUrl TEXT NOT NULL,
-    UNIQUE(client)
+CREATE TABLE callback_detail(
+    client_name TEXT NOT NULL,
+    Url TEXT NOT NULL,
+    UNIQUE(client_name)
 );
 
 CREATE TABLE answer(

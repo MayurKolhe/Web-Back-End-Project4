@@ -1,12 +1,22 @@
+import httpx
+from rq import Queue
+from rq.job import Job
 from redis import Redis
-from rq import Queue, Worker
+from rq.registry import FailedJobRegistry
+from quart import request
 
-redis = Redis()
-queue = Queue('queue_name')
+def leaderboard_post(value,callbackUrl):
+    try:
+        sending_request=httpx.post(callbackUrl,json=value)
+        print(sending_request.status_code)
+    except httpx.RequestError:
+        return "Error Happened !!!",sending_request.status_code
 
-# Start a worker with a custom name
-worker = Worker([queue], connection=redis, name='foo')
-print("worker: " + str(worker))
-print("worker name: " + str(worker.name))
-print("worker queues: " + str(worker.queues))
-print("worker count: " + str(worker.count))
+#Creating worker function
+def worker_func(user_name, final_result, guess, Url):
+    value={'username':user_name, 'result':final_result, 'guesses':guess}
+    redis_call=Redis()
+    queue=Queue(connection=Redis())
+    failedJobRegistry= FailedJobRegistry(queue=queue)
+    r=queue.enqueue(leaderboard_post,value,Url)
+    

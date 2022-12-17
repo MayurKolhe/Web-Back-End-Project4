@@ -13,6 +13,7 @@ from rq.job import Job
 from rq.registry import FailedJobRegistry
 from quart import Quart, abort, g, request
 from quart_schema import QuartSchema, validate_request
+import worker as W
 
 from redis import Redis
 
@@ -26,10 +27,10 @@ app.config.from_file(f"./etc/{__name__}.toml", toml.load)
 class Game:
     username: str
 
-@dataclasses.dataclass
-class Callback:
-    callbackUrl: str
-    client: str
+# @dataclasses.dataclass
+# class Callback_details:
+#     callbackUrl: str
+#     client: str
 @dataclasses.dataclass
 class Guess:
     gameid: str
@@ -71,23 +72,23 @@ async def close_connection(exception):
     if db is not None:
         await db.disconnect()
 
-def leaderboard_post(value,callbackUrl):
-    try:
-        sending_request=httpx.post(callbackUrl,json=value)
-        app.logger.info(sending_request.status_code)
-    except requests.exceptions.HTTPError:
-        return "Error Happened !!!",sending_request.status_code
+# def leaderboard_post(value,callbackUrl):
+#     try:
+#         sending_request=httpx.post(callbackUrl,json=value)
+#         app.logger.info(sending_request.status_code)
+#     except httpx.RequestError:
+#         return "Error Happened !!!",sending_request.status_code
 
-#Creating worker function
-def worker(username, result, guesses, callbackUrl):
-    value={'username':username, 'result':result, 'guesses':guesses}
-    redis_call=Redis()
-    queue=Queue(connection=Redis())
-    failedJobRegistry= FailedJobRegistry(queue=queue)
-    r=queue.enqueue(leaderboard_post,value,callbackUrl)
-    for i in failedJobRegistry.get_job_ids():
-        job=Job.fetch(i,connection=redis_call)
-        app.logger.info("Job Id: "+i) 
+# #Creating worker function
+# def worker(username, result, guesses, callbackUrl):
+#     value={'username':username, 'result':result, 'guesses':guesses}
+#     redis_call=Redis()
+#     queue=Queue(connection=Redis())
+#     failedJobRegistry= FailedJobRegistry(queue=queue)
+#     r=queue.enqueue(leaderboard_post,value,callbackUrl)
+#     for i in failedJobRegistry.get_job_ids():
+#         job=Job.fetch(i,connection=redis_call)
+#         app.logger.info("Job Id: "+i)
 
 
 
@@ -172,9 +173,9 @@ async def add_guess(data):
                 abort(404, e)
 
             # send data to LeaderBoard
-            callbackUrl = await db_read.fetch_one(
-                "SELECT callbackUrl FROM callbacks WHERE client = :client",
-                values={"client": 'leaderboard'},
+            Url = await db_read.fetch_one(
+                "SELECT Url FROM callback_detail WHERE client_name = :client_name",
+                values={"client_name": 'leaderboard'},
             )
 
             guessNum = await db_read.fetch_one(
@@ -184,7 +185,8 @@ async def add_guess(data):
 
             #packet = {"guesses": guessNum[0], "win": "win", "user_name": auth.username}
             #response = httpx.post(callbackUrl[0], json=packet)
-            worker(auth.username,"win",guessNum[0],callbackUrl[0])
+
+            W.worker_func(auth.username,"win",guessNum[0],"http://127.0.0.1:5400/leaderboard/post")
             return {
                 "guessedWord": currGame["word"],
                 "Accuracy": "\u2713" * 5,
@@ -256,13 +258,13 @@ async def add_guess(data):
 
                     # update game status as finished
                     callbackUrl = await db_read.fetch_one(
-                        "SELECT callbackUrl FROM callbacks WHERE client = :client",
-                        values={"client": 'leaderboard'},
+                        "SELECT Url FROM callback_detail WHERE client_name = :client_name",
+                        values={"client_name": 'leaderboard'},
                     )
 
 
                     #packet = {"guesses": guessNum[0], "win": "loss", "user_name": auth.username}
-                    worker(auth.username,"loss",guessNum[0],callbackUrl[0])
+                    W.worker_func(auth.username,"loss",guessNum[0],"http://127.0.0.1:5400/leaderboard/post")
                     #response = httpx.post(callbackUrl[0], json=packet)
 
                     await db_write.execute(
@@ -339,33 +341,32 @@ async def my_game():
             {"WWW-Authenticate": 'Basic realm = "Login required"'},
         )
 
-@app.route("/webhook", methods=["POST"])
-@validate_request(Callback)
-async def web_hook(data):
-    webhookData = dataclasses.asdict(data)
-    client = webhookData.get('client')
-    callbackUrl = webhookData.get('callbackUrl')
+@app.route("/webhookUrl", methods=["POST"])
+# @validate_request(Callback_details)
+async def web_hook():
+    response = requests.get_json()
+    client_name = response.get('client_name')
+    Url = response.get('Url')
     db = await _get_db("secondary")
     db_primary = await _get_db_primary()
-
     # check db if client is already registered
     check = await db.fetch_all(
-    "SELECT * FROM callbacks WHERE client=:client",
-    values={"client": client},
+    "SELECT * FROM callback_detail WHERE client_name=:client_name",
+    values={"client_name": client_name},
     )
 
     # if not registered add the client and callbackUrl to the DB
     if len(check) == 0:
-        print("Registering")
+        print("Registering client.....")
         await db_primary.execute(
-            "INSERT INTO callbacks(callbackUrl, client) VALUES(:callbackUrl, :client)",
-            values={"callbackUrl": callbackUrl, "client": client},
+            "INSERT INTO callback_detail(Url, client_name) VALUES(:Url, :client_name)",
+            values={"Url": Url, "client_name": client_name},
             )
         return {
-            "Success": "Client registered",
+            "Success": "Client registered Successfully.....",
         }, 201  # should return correct answer?
     else:
-        print("Already Registered")
+        print("client Already Registered !!!")
         return {
             "Success": "Client already exists",
         }, 201  # should return correct answer?

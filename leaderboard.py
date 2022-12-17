@@ -11,7 +11,7 @@ redis_client = redis.Redis(host='localhost', port=6379, db=0, charset='utf-8', d
 
 
 try:
-    response = httpx.post('http://127.0.0.1:5100/webhook', json={'callbackUrl': "http://127.0.0.1:5400/leaderboard/post", 'client': 'leaderboard'})
+    response = httpx.post('http://127.0.0.1:5100/webhookUrl', json={'Url': "http://127.0.0.1:5400/leaderboard/post", 'client_name': 'leaderboard'})
 except httpx.RequestError:
     time.sleep(5)
 
