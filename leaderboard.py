@@ -37,6 +37,35 @@ async def postgame():
         r.zadd("username",{key.decode('utf-8'): avg_score})
     return json_result
 
+
+@app.route('/postscore', methods=['POST'])
+async def postscore(guesses):
+    r = redis.Redis(host='localhost',port=6379,db=0)
+    # r.flushdb() #used to clear db
+    
+    for x in range(1, 20):
+	    if guesses == 6:
+	    	game_status = "lost"
+	    	user = f"username{x}"
+	    	r.lpush(user, 0) #push user and score as a list
+	    	r.zadd("username", {user:0}) # will be used to traverse all users
+    	
+
+    json_result = {}	   
+    for key in r.zrange("username",0,-1):
+        score_list = r.lrange(key,0,-1)
+        print("score_list: " + str(score_list))
+        avg_score = 0
+        #loop through all scores for user, val is in bytes
+        for val in score_list:
+            avg_score += int(val) 
+        #calc avg by total score / len of games
+        avg_score = int(avg_score/r.llen(key))
+        json_result[key.decode('utf-8')] = avg_score
+        r.zadd("username",{key.decode('utf-8'): avg_score})
+    return json_result
+
+
 @app.route('/leaderboard')
 async def leaderboard():
     r = redis.Redis(db=0)
