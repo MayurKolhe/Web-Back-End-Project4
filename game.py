@@ -6,9 +6,14 @@ import random
 import httpx
 import toml
 import time
+import requests
+from rq import Queue
+from rq.job import Job
+
+from rq.registry import FailedJobRegistry
 from quart import Quart, abort, g, request
 from quart_schema import QuartSchema, validate_request
-from rq import Queue
+
 from redis import Redis
 
 app = Quart(__name__)
@@ -65,6 +70,26 @@ async def close_connection(exception):
     db = getattr(g, "_sqlite_db", None)
     if db is not None:
         await db.disconnect()
+
+def leaderboard_post(value,callbackUrl):
+    try:
+        sending_request=httpx.post(callbackUrl,json=value)
+        app.logger.info(sending_request.status_code)
+    except requests.exceptions.HTTPError:
+        return "Error Happened !!!",sending_request.status_code
+
+#Creating worker function
+def worker(username, result, guesses, callbackUrl):
+    value={'username':username, 'result':result, 'guesses':guesses}
+    redis_call=Redis()
+    queue=Queue(connection=Redis())
+    failedJobRegistry= FailedJobRegistry(queue=queue)
+    r=queue.enqueue(leaderboard_post,value,callbackUrl)
+    for i in failedJobRegistry.get_job_ids():
+        job=Job.fetch(i,connection=redis_call)
+        app.logger.info("Job Id: "+i) 
+
+
 
 
 @app.route("/newgame", methods=["POST"])
@@ -157,9 +182,9 @@ async def add_guess(data):
                 values={"gameid": currGame["gameid"]},
             )
 
-            packet = {"guesses": guessNum[0], "win": "win", "user_name": auth.username}
-            response = httpx.post(callbackUrl[0], json=packet)
-
+            #packet = {"guesses": guessNum[0], "win": "win", "user_name": auth.username}
+            #response = httpx.post(callbackUrl[0], json=packet)
+            worker(auth.username,"win",guessNum[0],callbackUrl[0])
             return {
                 "guessedWord": currGame["word"],
                 "Accuracy": "\u2713" * 5,
@@ -236,8 +261,9 @@ async def add_guess(data):
                     )
 
 
-                    packet = {"guesses": guessNum[0], "win": "loss", "user_name": auth.username}
-                    response = httpx.post(callbackUrl[0], json=packet)
+                    #packet = {"guesses": guessNum[0], "win": "loss", "user_name": auth.username}
+                    worker(auth.username,"loss",guessNum[0],callbackUrl[0])
+                    #response = httpx.post(callbackUrl[0], json=packet)
 
                     await db_write.execute(
                         """
