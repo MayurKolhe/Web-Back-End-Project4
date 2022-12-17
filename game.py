@@ -10,6 +10,7 @@ from quart import Quart, abort, g, request
 from quart_schema import QuartSchema, validate_request
 from rq import Queue
 from redis import Redis
+from leaderboard import postScore
 
 app = Quart(__name__)
 QuartSchema(app)
@@ -230,6 +231,10 @@ async def add_guess(data):
                 if guessNum[0] + 1 >= 6:
 
                     # update game status as finished
+                    redis_conn = Redis()
+                    q = Queue(connection=redis_conn)
+                    job = q.enqueue(postScore)	
+                    print(job.result)
                     callbackUrl = await db_read.fetch_one(
                         "SELECT callbackUrl FROM callbacks WHERE client = :client",
                         values={"client": 'leaderboard'},
