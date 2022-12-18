@@ -1,11 +1,24 @@
-### Backend Project 3
+### Backend Project 4
 
-| Group 10         |
+| Group 12         |
 | ---------------- |
-| Mohamed Habarneh |
+| Satish Bisa |
 | Mayur Kolhe      |
-| Marina Urrutia   |
-| Mike Ploythai    |
+| Debdyuti Das   |
+| Henry Nguyen    |
+
+##### PROJECT OVERVIEW
+This project builds off of a previous project 3 build, with some additional functionality such as webhook usage, message deliveries via Redis Queue queues, and UNIX cron service implementation. Details on webhook implementation can be seen in the foreman output throughout the execution of the game service's endpoint executions (specifically /addguess). Upon the completion of a game, foreman will also show information regarding the worker function being used for the message queue's job execution. In particular, it shows the successful completion of outputting a leaderboard after the leaderboard service receives information from the game service. And for the UNIX cron implementation, details can simply be seen by executing the following commands (in order) from the project's directory:
+
+```
+   crontab -e
+
+   cd /var/log
+
+   vi syslog
+   
+```
+
 
 ##### HOW TO RUN THE PROJECT
 
@@ -54,94 +67,98 @@
       python3 dbpop.py
    ```
 
-4. Test all the endpoints using httpie
+4. Restart foreman
+
+ ```c
+     *ctrl + c*
+     foreman start
+   ```
+   NOTE 1: We found during testing that this step is helpful for the callback URL data to be seen from the DB.
+   NOTE 2: If an error occurs on this command, run "sudo lsof -i :5100" and stop any relevant PIDs with "kill -9 (*pid value*)"
+
+5. Test all the endpoints using httpie
 
    - user
 
-     - register account: `http POST http://tuffix-vm/registration username="yourusername" password="yourpassword"`
+     - register account: `http POST http://127.0.0.1:5000/registration  username="yourusername" password="yourpassword"`
 
      Sample Output:
 
      ```
      {
-       "id": 3,
-       "password": "tawade",
-       "username": "himani"
+       "id": 1,
+       "password": "abc",
+       "username": "abc"
      }
      ```
 
-     - login {Not accesible}: 'http --auth himani:tawade GET http://tuffix-vm/login'
+     - login: 'http --auth abc:abc GET http://127.0.0.1:5000/login'
        Sample Output:
 
      ```
-      HTTP/1.1 404 Not Found
-      Connection: keep-alive
-      Content-Encoding: gzip
-      Content-Type: text/html
-      Date: Fri, 18 Nov 2022 21:04:31 GMT
-      Server: nginx/1.18.0 (Ubuntu)
-      Transfer-Encoding: chunked
+      HTTP/1.1 200 
+      content-length: 24
+      content-type: application/json
+      date: Sun, 18 Dec 2022 02:23:36 GMT
+      server: hypercorn-h11
 
-      <html>
-      <head><title>404 Not Found</title></head>
-      <body>
-      <center><h1>404 Not Found</h1></center>
-      <hr><center>nginx/1.18.0 (Ubuntu)</center>
-      </body>
-      </html>
+      {
+         "authenticated": "true"
+      }
+
      ```
 
    - game
 
-     - create a new game: `http --auth yourusername:yourpassword POST http://tuffix-vm/newgame`
+     - create a new game: `http --auth username:password POST http://127.0.0.1:5100/newgame`
 
      Sample Output:
 
      ```
-     'http --auth himani:tawade POST http://tuffix-vm/newgame'
+     'http --auth abc:abc POST http://127.0.0.1:5100/newgame'
      {
-        "answerid": 3912,
-        "gameid": "b0039f36-6784-11ed-ba4a-615e339a8400",
-        "username": "himani"
+        "answerid": 1380,
+        "gameid": "9d0e068e-7e75-11ed-afbc-fba81ab2d100",
+        "username": "abc"
      }
      ```
 
-     Note - this will return a `gameid`
+     NOTE: the "gameid" value returned here is important to re-use for commands which apply to that specific game i.e. guessing      a word for a particular game. 
 
-     - add a guess: `http --auth yourusername:yourpassword PUT http://tuffix-vm/addguess gameid="gameid" word="yourguess"`
+     - Take a guess: `http --auth username:password PUT http://127.0.0.1:5100/addguess gameid="gameid" word="yourguess"`
 
      Sample Output:
 
      ```
-     http --auth himani:tawade PUT http://tuffix-vm/addguess gameid="b0039f36-6784-11ed-ba4a-615e339a8400" word="amigo"
+     http --auth abc:abc PUT http://127.0.0.1:5100/addguess gameid=9d0e068e-7e75-11ed-afbc-fba81ab2d100 word=money
      {
-        "Accuracy": "XXOOO",
-        "guessedWord": "amigo"
+        "Accuracy": "XXOXO",
+        "guessedWord": "money"
      }
      ```
+     NOTE: Once game is finished, foreman will output details on the worker function which the game service uses to send score      information to the leaderboard service upon game completion. Also, under the specific leaderboard messages on foreman, you      will be able to see successful '200' messages as well as relevant webhook details. 
 
-     - display your active games: `http --auth yourusername:yourpassword GET http://tuffix-vm/allgames`
+     - display your active games: `http --auth yourusername:yourpassword GET http://127.0.0.1:5100/allgames`
 
      Sample Output:
 
      ```
-     http --auth himani:tawade GET http://tuffix-vm/allgames
+     http --auth abc:abc GET http://127.0.0.1:5100/allgames
      [
         {
-           "gameid": "b0039f36-6784-11ed-ba4a-615e339a8400",
+           "gameid": "9d0e068e-7e75-11ed-afbc-fba81ab2d100",
            "gstate": "In-progress",
            "guesses": 1
         }
      ]
      ```
 
-     - display the game status and stats for one game: `http --auth yourusername:yourpassword GET http://tuffix-vm/onegame?id=gameid`
-       - example: `.../onegame?id=b97fcbb0-6717-11ed-8689-e9ba279d21b6`
+     - Display the game status and stats for a particular game: `http --auth username:password GET http://127.0.0.1:5100/onegame?id=gameid`
 
      Sample Output:
 
      ```
-     http --auth himani:tawade GET http://tuffix-vm/onegame?id="b0039f36-6784-11ed-ba4a-615e339a8400"
+     http --auth abc:abc GET http://127.0.0.1:5100/onegame?id="9d0e068e-7e75-11ed-afbc-fba81ab2d100"
      [
         {
               "gameid": "b0039f36-6784-11ed-ba4a-615e339a8400",
@@ -149,63 +166,32 @@
            "guesses": 1
            },
            {
-              "accuracy": "XXOOO",
-              "guessedword": "amigo"
+              "accuracy": "XXOXO",
+              "guessedword": "money"
            }
      ]
      ```
 
-     - return the results of a game (win or loss), along with the number of guesses the user made: `http POST http://127.0.0.1:5400/postgame`
+     - Show the top 10 leaders of all games with 'http GET http://127.0.0.1:5400/leaderboard'
 
      Sample Output:
 
      ```
-        http POST http://127.0.0.1:5400/postgame
-        {
-           "username1": 3,
-           "username10": 0,
-           "username11": 0,
-           "username12": 0,
-           "username13": 0,
-           "username14": 2,
-           "username15": 1,
-           "username16": 3,
-           "username17": 5,
-           "username18": 0,
-           "username19": 0,
-           "username2": 3,
-           "username3": 0,
-           "username4": 2,
-           "username5": 2,
-           "username6": 0,
-           "username7": 1,
-           "username8": 0,
-           "username9": 0
-        }
+        Top 10 leaders are:
+        
+        'abc', 5.0
+        'def', 5.0
+        'ghi', 5.0
+        'jkl', 5.0
+        'mno', 5.0
+        'pqr', 5.0
+        'stu', 5.0
+        'vwx', 5.0
+        'yza', 5.0
+        'bcd', 5.0
      ```
 
-     - retrieve the top 10 users by average score: `http GET http://tuffix-vm/leaderboard`
-       - if you're not running on Ubuntu, you must add `:5400` to the end of `tuffix-vm`
-
-     Sample Output:
-
-     ```
-        http GET http://tuffix-vm/leaderboard
-        {
-           "username1": 6,
-           "username14": 1,
-           "username17": 4,
-           "username2": 4,
-           "username4": 0,
-           "username5": 4,
-           "username6": 0,
-           "username7": 0,
-           "username8": 0,
-           "username9": 0
-        }
-     ```
-
-5. to close the server, do `ctrl + c`. After the server closes, unmount the databases
+5. to close the server, run `ctrl + c`. After the server closes, unmount the databases
 
    ```
       // give permissions
