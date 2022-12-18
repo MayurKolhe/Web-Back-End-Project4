@@ -25,9 +25,8 @@ CREATE TABLE guess(
 );
 
 CREATE TABLE callback_detail(
-    client_name TEXT NOT NULL,
+    client_name TEXT PRIMARY KEY,
     Url TEXT NOT NULL,
-    UNIQUE(client_name)
 );
 
 CREATE TABLE answer(

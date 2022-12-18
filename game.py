@@ -3,19 +3,11 @@ import sqlite3
 import uuid
 import databases
 import random
-import httpx
 import toml
-import time
 import requests
-from rq import Queue
-from rq.job import Job
-
-from rq.registry import FailedJobRegistry
 from quart import Quart, abort, g, request
 from quart_schema import QuartSchema, validate_request
 import worker as W
-
-from redis import Redis
 
 app = Quart(__name__)
 QuartSchema(app)
@@ -27,10 +19,6 @@ app.config.from_file(f"./etc/{__name__}.toml", toml.load)
 class Game:
     username: str
 
-# @dataclasses.dataclass
-# class Callback_details:
-#     callbackUrl: str
-#     client: str
 @dataclasses.dataclass
 class Guess:
     gameid: str
@@ -71,27 +59,6 @@ async def close_connection(exception):
     db = getattr(g, "_sqlite_db", None)
     if db is not None:
         await db.disconnect()
-
-# def leaderboard_post(value,callbackUrl):
-#     try:
-#         sending_request=httpx.post(callbackUrl,json=value)
-#         app.logger.info(sending_request.status_code)
-#     except httpx.RequestError:
-#         return "Error Happened !!!",sending_request.status_code
-
-# #Creating worker function
-# def worker(username, result, guesses, callbackUrl):
-#     value={'username':username, 'result':result, 'guesses':guesses}
-#     redis_call=Redis()
-#     queue=Queue(connection=Redis())
-#     failedJobRegistry= FailedJobRegistry(queue=queue)
-#     r=queue.enqueue(leaderboard_post,value,callbackUrl)
-#     for i in failedJobRegistry.get_job_ids():
-#         job=Job.fetch(i,connection=redis_call)
-#         app.logger.info("Job Id: "+i)
-
-
-
 
 @app.route("/newgame", methods=["POST"])
 async def create_game():
@@ -173,24 +140,16 @@ async def add_guess(data):
                 abort(404, e)
 
             # send data to LeaderBoard
-            Url = await db_read.fetch_one(
-                "SELECT Url FROM callback_detail WHERE client_name = :client_name",
-                values={"client_name": 'leaderboard'},
-            )
-
             guessNum = await db_read.fetch_one(
                 "SELECT guesses from game where gameid = :gameid",
                 values={"gameid": currGame["gameid"]},
             )
 
-            #packet = {"guesses": guessNum[0], "win": "win", "user_name": auth.username}
-            #response = httpx.post(callbackUrl[0], json=packet)
-
             W.worker_func(auth.username,"win",guessNum[0],"http://127.0.0.1:5400/leaderboard/post")
             return {
                 "guessedWord": currGame["word"],
                 "Accuracy": "\u2713" * 5,
-            }, 201  # should return correct answer?
+            }, 201
 
         # if 1 then word is valid otherwise it isn't valid and also check if they exceed guess limit
         isValidGuess = await db_read.fetch_one(
@@ -225,7 +184,6 @@ async def add_guess(data):
                 guess_word = currGame["word"]
                 for i in range(len(guess_word)):
                     if guess_word[i] in ansDict:
-                        # print(ansDict.get(guess_word[i]))
                         if ansDict.get(guess_word[i]) == i:
                             accuracy += "\u2713"
                         else:
@@ -252,20 +210,10 @@ async def add_guess(data):
                         "gameid": currGame["gameid"],
                     },
                 )
-
                 # if after updating game number of guesses reaches max guesses then mark game as finished
                 if guessNum[0] + 1 >= 6:
 
-                    # update game status as finished
-                    callbackUrl = await db_read.fetch_one(
-                        "SELECT Url FROM callback_detail WHERE client_name = :client_name",
-                        values={"client_name": 'leaderboard'},
-                    )
-
-
-                    #packet = {"guesses": guessNum[0], "win": "loss", "user_name": auth.username}
                     W.worker_func(auth.username,"loss",guessNum[0],"http://127.0.0.1:5400/leaderboard/post")
-                    #response = httpx.post(callbackUrl[0], json=packet)
 
                     await db_write.execute(
                         """
@@ -277,7 +225,6 @@ async def add_guess(data):
             except sqlite3.IntegrityError as e:
                 abort(404, e)
         else:
-            # should return msg saying invalid word?
             return {"Error": "Invalid Word"}
 
         return {"guessedWord": currGame["word"], "Accuracy": accuracy}, 201
@@ -342,7 +289,6 @@ async def my_game():
         )
 
 @app.route("/webhookUrl", methods=["POST"])
-# @validate_request(Callback_details)
 async def web_hook():
     response = requests.get_json()
     client_name = response.get('client_name')
